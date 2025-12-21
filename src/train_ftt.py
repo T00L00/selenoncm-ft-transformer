@@ -11,6 +11,8 @@ from sklearn.metrics import (
 import pandas as pd
 import numpy as np
 import copy
+import os
+from pathlib import Path
 
 @torch.no_grad()
 def evaluate(model, loader, device):
@@ -47,32 +49,32 @@ def evaluate(model, loader, device):
     return out
 
 def train_one_run(
-    X_train, y_train,
-    X_val, y_val,
+    train_ds: MorphologyDataset,
+    val_ds: MorphologyDataset,
+    test_ds: MorphologyDataset,
+    n_features: int,
     *,
-    d_model=128,
-    n_heads=8,
-    n_layers=3,
-    dropout=0.2,
-    token_dropout=0.1,
-    batch_size=64,
-    lr=2e-4,
-    weight_decay=1e-3,
-    max_epochs=200,
-    patience=20,
+    d_model: int=128,
+    n_heads: int=8,
+    n_layers: int=3,
+    dropout: float=0.2,
+    token_dropout: float=0.1,
+    batch_size: int=64,
+    lr: float=2e-4,
+    weight_decay: float=1e-3,
+    max_epochs: int=200,
+    patience: int=20,
     pos_weight=None,   # torch scalar or None
     device=None
 ):
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
 
-    train_ds = MorphologyDataset(X_train, y_train)
-    val_ds = MorphologyDataset(X_val, y_val)
-
     train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, drop_last=False)
     val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=True)
+    test_loader = DataLoader(test_ds, batch_size=batch_size, shuffle=True)
 
     model = TabTransformerClassifier(
-        num_features=X_train.shape[1],
+        num_features=n_features,
         d_model=d_model,
         n_heads=n_heads,
         n_layers=n_layers,
@@ -92,7 +94,7 @@ def train_one_run(
     # Simple cosine schedule (optional)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max_epochs)
 
-    best = {"model": None, "score": -np.inf, "epoch": -1}
+    best = {"model": None, "validation_score": -np.inf, "epoch": -1}
     bad_epochs = 0
 
     for epoch in range(1, max_epochs + 1):
@@ -118,8 +120,8 @@ def train_one_run(
             # fallback if roc-auc can't be computed
             score = metrics["pr_auc"]
 
-        if score > best["score"]:
-            best["score"] = score
+        if score > best["validation_score"]:
+            best["validation_score"] = score
             best["epoch"] = epoch
             best["model"] = copy.deepcopy(model.state_dict())
             bad_epochs = 0
@@ -133,8 +135,8 @@ def train_one_run(
     if best["model"] is not None:
         model.load_state_dict(best["model"])
 
-    final_metrics = evaluate(model, val_loader, device)
-    return model, final_metrics, best
+    test_metrics = evaluate(model, test_loader, device)
+    return model, test_metrics, best    
 
 def run_train_val_split(
     df: pd.DataFrame,
@@ -146,19 +148,24 @@ def run_train_val_split(
     X = df[feature_cols].to_numpy(dtype=np.float32)
     y = df[label_col].to_numpy(dtype=np.int64)
 
-    X_train, X_combine, y_train, y_combine = train_test_split(X, y, test_size=test_size, stratify=y, random_state=random_state)
+    X_train, X_combine, y_train, y_combine = train_test_split(
+        X, y, test_size=test_size, stratify=y, random_state=random_state
+    )
 
     X_val, X_test, y_val, y_test = train_test_split(
         X_combine, y_combine, test_size=test_size, stratify=y, random_state=random_state
     )
-
-    # TODO - run separate test on trained model
 
     # Preprocess (fit on train only)
     normalize = Normalize(mode="robust", clip_z=5.0)
     normalize.fit(X_train)
     X_train = normalize.transform(X_train)
     X_val = normalize.transform(X_val)
+    X_test = normalize.transform(X_test)
+
+    train_ds = MorphologyDataset(X_train, y_train)
+    val_ds = MorphologyDataset(X_val, y_val)
+    test_ds = MorphologyDataset(X_test, y_test)
 
     # Handle class imbalance via pos_weight if needed
     # pos_weight = (#neg / #pos)
@@ -166,9 +173,11 @@ def run_train_val_split(
     n_neg = (y_train == 0).sum()
     pos_weight = torch.tensor([n_neg / max(n_pos, 1)], dtype=torch.float32)
 
-    model, val_metrics, best = train_one_run(
-        X_train, y_train,
-        X_val, y_val,
+    model, test_metrics, best = train_one_run(
+        train_ds=train_ds,
+        val_ds=val_ds,
+        test_ds=test_ds,
+        n_features=X_train.shape[1],
         d_model=128,
         n_heads=8,
         n_layers=3,
@@ -183,15 +192,34 @@ def run_train_val_split(
     )
 
     print("Best epoch:", best["epoch"])
-    print("Validation metrics:", val_metrics)
+    print("Test metrics:", test_metrics)
 
-    return model, normalize, X_train, X_val, y_train, y_val
+    return model, test_ds
 
 if __name__ == "__main__":
 
+    OUTPUTS_DIR = Path("./outputs")
+
+    # Create experiment directory with unique identifier attached to "fft_" prefix
+    os.makedirs(OUTPUTS_DIR, exist_ok=True)
+    experiments = OUTPUTS_DIR.rglob("ff_")
+    ftt_experiments = [e for e in experiments if os.path.isdir(e)]
+    EXPERIMENT_DIR = OUTPUTS_DIR / f"fft_{len(ftt_experiments)+1}"
+    os.makedirs(EXPERIMENT_DIR, exist_ok=True)
+
+    print(f"Created experiment directory {str(EXPERIMENT_DIR)}...")
+
     df = load_preprocessed_data()
+    print(df.shape)
+
+    print("Loaded preprocessed data...")
+    print("Training started...")
 
     # Train
     label_col = "label"  # 0/1
     feature_cols = [c for c in df.columns if c != label_col]
-    model, prep, X_tr, X_va, y_tr, y_va = run_train_val_split(df, feature_cols, label_col)
+    model, test_ds = run_train_val_split(df, feature_cols, label_col)
+
+    # Save model and test split
+    torch.save(model.state_dict(), EXPERIMENT_DIR)
+    print(f"Trained model saved in {EXPERIMENT_DIR}...")
