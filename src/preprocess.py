@@ -3,6 +3,8 @@ from torch.utils.data import Dataset
 import numpy as np
 import pandas as pd
 from cmapPy.pandasGEXpress.parse import parse
+from pathlib import Path
+import yaml
 
 class MorphologyDataset(Dataset):
     def __init__(self, X: np.ndarray, y: np.ndarray):
@@ -90,3 +92,7 @@ def load_preprocessed_data() -> pd.DataFrame:
     df["label"] = samples_metadata["perturbation"].apply(lambda x: 1 if x == "3F9KO" or x == "KO" else 0)
 
     return df
+
+def load_config(path: str | Path) -> dict:
+    with open(path, "r") as f:
+        return yaml.safe_load(f)

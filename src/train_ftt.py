@@ -1,4 +1,4 @@
-from preprocess import MorphologyDataset, Normalize, load_preprocessed_data
+from preprocess import MorphologyDataset, Normalize, load_preprocessed_data, load_config
 from ft_transformer import TabTransformerClassifier
 import torch
 import torch.nn as nn
@@ -13,6 +13,7 @@ import numpy as np
 import copy
 import os
 from pathlib import Path
+import yaml
 
 @torch.no_grad()
 def evaluate(model, loader, device):
@@ -140,20 +141,19 @@ def train_one_run(
 
 def run_train_val_split(
     df: pd.DataFrame,
-    feature_cols,
+    feature_cols: list[str],
     label_col: str,
-    test_size: float = 0.2,
-    random_state: int = 42,
+    config: dict
 ):
     X = df[feature_cols].to_numpy(dtype=np.float32)
     y = df[label_col].to_numpy(dtype=np.int64)
 
     X_train, X_combine, y_train, y_combine = train_test_split(
-        X, y, test_size=test_size, stratify=y, random_state=random_state
+        X, y, test_size=config["training"]["test_size"], stratify=y, random_state=config["training"]["seed"]
     )
 
     X_val, X_test, y_val, y_test = train_test_split(
-        X_combine, y_combine, test_size=test_size, stratify=y, random_state=random_state
+        X_combine, y_combine, test_size=config["training"]["test_size"], stratify=y_combine, random_state=config["training"]["seed"]
     )
 
     # Preprocess (fit on train only)
@@ -178,16 +178,16 @@ def run_train_val_split(
         val_ds=val_ds,
         test_ds=test_ds,
         n_features=X_train.shape[1],
-        d_model=128,
-        n_heads=8,
-        n_layers=3,
-        dropout=0.2,
-        token_dropout=0.1,
-        batch_size=64,
-        lr=2e-4,
-        weight_decay=1e-3,
-        max_epochs=300,
-        patience=30,
+        d_model=config["model"]["d_model"],
+        n_heads=config["model"]["n_heads"],
+        n_layers=config["model"]["n_layers"],
+        dropout=config["model"]["dropout"],
+        token_dropout=config["model"]["token_dropout"],
+        batch_size=config["training"]["batch_size"],
+        lr=float(config["training"]["lr"]),
+        weight_decay=float(config["training"]["weight_decay"]),
+        max_epochs=config["training"]["max_epochs"],
+        patience=config["training"]["patience"],
         pos_weight=pos_weight,
     )
 
@@ -202,9 +202,8 @@ if __name__ == "__main__":
 
     # Create experiment directory with unique identifier attached to "fft_" prefix
     os.makedirs(OUTPUTS_DIR, exist_ok=True)
-    experiments = OUTPUTS_DIR.rglob("ff_")
-    ftt_experiments = [e for e in experiments if os.path.isdir(e)]
-    EXPERIMENT_DIR = OUTPUTS_DIR / f"fft_{len(ftt_experiments)+1}"
+    experiments = list(OUTPUTS_DIR.rglob("ftt_*"))
+    EXPERIMENT_DIR = OUTPUTS_DIR / f"ftt_{len(experiments)+1}"
     os.makedirs(EXPERIMENT_DIR, exist_ok=True)
 
     print(f"Created experiment directory {str(EXPERIMENT_DIR)}...")
@@ -216,10 +215,16 @@ if __name__ == "__main__":
     print("Training started...")
 
     # Train
+    config = load_config(Path("./configs/config.yml"))
     label_col = "label"  # 0/1
     feature_cols = [c for c in df.columns if c != label_col]
-    model, test_ds = run_train_val_split(df, feature_cols, label_col)
+    model, test_ds = run_train_val_split(df, feature_cols, label_col, config)
 
     # Save model and test split
-    torch.save(model.state_dict(), EXPERIMENT_DIR)
-    print(f"Trained model saved in {EXPERIMENT_DIR}...")
+    torch.save(model.state_dict(), EXPERIMENT_DIR / "model_wts.pt" )
+    torch.save({
+        "X": test_ds.X.detach().cpu().numpy(),
+        "y": test_ds.y.detach().cpu().numpy(),
+    }, EXPERIMENT_DIR / "test_ds.pt")
+
+    print(f"Trained model and test split saved in {EXPERIMENT_DIR}...")
