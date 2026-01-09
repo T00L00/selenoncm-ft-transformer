@@ -11,6 +11,8 @@ from torch.utils.data import DataLoader
 from pathlib import Path
 from ft_transformer import TabTransformerClassifier
 from preprocess import MorphologyDataset, load_config
+import argparse
+import os
 
 @torch.no_grad()
 def collect_probs_and_labels(model, loader, device):
@@ -144,7 +146,14 @@ def plot_model_performance(y_true, probs, title_prefix="Validation"):
 
 if __name__ == "__main__":
 
-    EXPERIMENT = Path("./outputs/ftt_1")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-e", "--experiment", type=str, help="name of experiment in ouptuts directory")
+    args = parser.parse_args()
+
+    EXPERIMENT = Path(f"./outputs/{args.experiment}")
+    if not os.path.isdir(EXPERIMENT):
+        raise Exception(f"Experiment directory {EXPERIMENT} not found...")
+
     CONFIG = Path("./configs/config.yml")
     MODEL_PATH = EXPERIMENT / "model_wts.pt"
     TESTDS_PATH = EXPERIMENT / "test_ds.pt"

@@ -6,6 +6,8 @@ from cmapPy.pandasGEXpress.parse import parse
 from pathlib import Path
 import yaml
 
+DATASET = "./data/data.gct"
+
 class MorphologyDataset(Dataset):
     def __init__(self, X: np.ndarray, y: np.ndarray):
         # X: float32 [N, D], y: int64 [N]
@@ -81,10 +83,8 @@ class Normalize:
         return X_scaled.astype(np.float32)
 
 def load_preprocessed_data() -> pd.DataFrame:
-    data_filepath = "./data/data.gct"
-
     # Load data and preprocess
-    gct = parse(data_filepath)
+    gct = parse(DATASET)
     df = gct.data_df
     df = df.T
 
@@ -92,6 +92,12 @@ def load_preprocessed_data() -> pd.DataFrame:
     df["label"] = samples_metadata["perturbation"].apply(lambda x: 1 if x == "3F9KO" or x == "KO" else 0)
 
     return df
+
+def get_features() -> list[str]:
+    gct = parse(DATASET)
+    df = gct.data_df
+    df = df.T
+    return df.columns
 
 def load_config(path: str | Path) -> dict:
     with open(path, "r") as f:
