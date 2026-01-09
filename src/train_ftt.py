@@ -194,7 +194,13 @@ def run_train_val_split(
     print("Best epoch:", best["epoch"])
     print("Test metrics:", test_metrics)
 
-    return model, test_ds
+    return model, train_ds, val_ds, test_ds
+
+def save_ds(ds: MorphologyDataset, filename: str):
+    torch.save({
+        "X": ds.X.detach().cpu().numpy(),
+        "y": ds.y.detach().cpu().numpy()
+    }, EXPERIMENT_DIR / filename)
 
 if __name__ == "__main__":
 
@@ -218,13 +224,12 @@ if __name__ == "__main__":
     config = load_config(Path("./configs/config.yml"))
     label_col = "label"  # 0/1
     feature_cols = [c for c in df.columns if c != label_col]
-    model, test_ds = run_train_val_split(df, feature_cols, label_col, config)
+    model, train_ds, val_ds, test_ds = run_train_val_split(df, feature_cols, label_col, config)
 
     # Save model and test split
     torch.save(model.state_dict(), EXPERIMENT_DIR / "model_wts.pt" )
-    torch.save({
-        "X": test_ds.X.detach().cpu().numpy(),
-        "y": test_ds.y.detach().cpu().numpy(),
-    }, EXPERIMENT_DIR / "test_ds.pt")
+    save_ds(train_ds, "train_ds.pt")
+    save_ds(val_ds, "val_ds.pt")
+    save_ds(test_ds, "test_ds.pt")
 
     print(f"Trained model and test split saved in {EXPERIMENT_DIR}...")
