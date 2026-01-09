@@ -1,0 +1,37 @@
+services:
+  dev:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: selenoncm-ftt-dev:latest
+    container_name: selenoncm-ftt-dev
+    working_dir: /workspace
+
+    volumes:
+      - ./:/workspace:cached
+
+    shm_size: "8gb"
+    ulimits:
+      memlock: -1
+      stack: 67108864
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['1']
+              capabilities: [gpu]
+
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=1
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+
+      - OMP_NUM_THREADS=8
+      - MKL_NUM_THREADS=8
+
+    ports:
+      - "6006:6006"
+      - "8888:8888"
+
+    command: bash -lc "sleep infinity"
