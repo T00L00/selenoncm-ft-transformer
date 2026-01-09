@@ -3,10 +3,9 @@ from ft_transformer import TabTransformerClassifier
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, StratifiedKFold
 from sklearn.metrics import (
-    roc_auc_score, precision_score, recall_score, average_precision_score, f1_score, accuracy_score,
-    confusion_matrix, roc_curve, precision_recall_curve,
+    roc_auc_score, average_precision_score, f1_score, accuracy_score,
 )
 import pandas as pd
 import numpy as np
@@ -14,6 +13,7 @@ import copy
 import os
 from pathlib import Path
 import yaml
+import argparse
 
 @torch.no_grad()
 def evaluate(model, loader, device):
@@ -139,7 +139,7 @@ def train_one_run(
     test_metrics = evaluate(model, test_loader, device)
     return model, test_metrics, best    
 
-def run_train_val_split(
+def run_normal_training(
     df: pd.DataFrame,
     feature_cols: list[str],
     label_col: str,
@@ -196,6 +196,130 @@ def run_train_val_split(
 
     return model, train_ds, val_ds, test_ds
 
+def run_5fold_cv(
+    df: pd.DataFrame,
+    feature_cols,
+    label_col: str,
+    config: dict,
+    n_splits: int = 5,
+    random_state: int = 42,
+    save_folds: bool = True,
+):
+    X = df[feature_cols].to_numpy(dtype=np.float32)
+    y = df[label_col].to_numpy(dtype=np.int64)
+
+    skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=random_state)
+
+    fold_rows: list[dict] = []
+    for fold, (train_idx, test_idx) in enumerate(skf.split(X, y), start=1):
+        # Split train fold into train/val
+        X_train_full, y_train_full = X[train_idx], y[train_idx]
+        X_test, y_test = X[test_idx], y[test_idx]
+
+        X_train, X_val, y_train, y_val = train_test_split(
+            X_train_full,
+            y_train_full,
+            test_size=0.2,
+            stratify=y_train_full,
+            random_state=random_state,
+        )
+
+        # Preprocess (fit on train only)
+        normalize = Normalize(mode="robust", clip_z=5.0)
+        normalize.fit(X_train)
+        X_train_n = normalize.transform(X_train)
+        X_val_n = normalize.transform(X_val)
+        X_test_n = normalize.transform(X_test)
+
+        train_ds = MorphologyDataset(X_train_n, y_train)
+        val_ds = MorphologyDataset(X_val_n, y_val)
+        test_ds = MorphologyDataset(X_test_n, y_test)
+
+        # Handle class imbalance via pos_weight if needed
+        n_pos = (y_train == 1).sum()
+        n_neg = (y_train == 0).sum()
+        pos_weight = torch.tensor([n_neg / max(n_pos, 1)], dtype=torch.float32)
+
+        model, test_metrics, best = train_one_run(
+            train_ds=train_ds,
+            val_ds=val_ds,
+            test_ds=test_ds,
+            n_features=X_train_n.shape[1],
+            d_model=config["model"]["d_model"],
+            n_heads=config["model"]["n_heads"],
+            n_layers=config["model"]["n_layers"],
+            dropout=config["model"]["dropout"],
+            token_dropout=config["model"]["token_dropout"],
+            batch_size=config["training"]["batch_size"],
+            lr=float(config["training"]["lr"]),
+            weight_decay=float(config["training"]["weight_decay"]),
+            max_epochs=config["training"]["max_epochs"],
+            patience=config["training"]["patience"],
+            pos_weight=pos_weight,
+        )
+
+        row = {
+            "fold": fold,
+            "best_epoch": int(best.get("epoch", -1)),
+            "best_val_score": float(best.get("validation_score", float("nan"))),
+            **{k: float(v) for k, v in test_metrics.items()},
+            "n_train": int(len(train_ds)),
+            "n_val": int(len(val_ds)),
+            "n_test": int(len(test_ds)),
+            "pos_weight": float(pos_weight.item()),
+        }
+        fold_rows.append(row)
+
+        print(f"[CV] Fold {fold}/{n_splits} | best_epoch={row['best_epoch']} | test={test_metrics}")
+
+        if save_folds:
+            fold_dir = EXPERIMENT_DIR / f"cv_fold_{fold}"
+            os.makedirs(fold_dir, exist_ok=True)
+            torch.save(model.state_dict(), fold_dir / "model_wts.pt")
+            torch.save(
+                {
+                    "normalize": {
+                        "mode": "robust",
+                        "clip_z": 5.0,
+                        # Store fitted params if Normalize exposes them
+                        "__dict__": getattr(normalize, "__dict__", {}),
+                    },
+                    "best": best,
+                    "metrics": test_metrics,
+                    "row": row,
+                },
+                fold_dir / "fold_summary.pt",
+            )
+            torch.save({"X": X_train_n, "y": y_train}, fold_dir / "train_ds.pt")
+            torch.save({"X": X_val_n, "y": y_val}, fold_dir / "val_ds.pt")
+            torch.save({"X": X_test_n, "y": y_test}, fold_dir / "test_ds.pt")
+
+    results = pd.DataFrame(fold_rows)
+
+    # Aggregate
+    metric_cols = [c for c in ["roc_auc", "pr_auc", "f1", "acc"] if c in results.columns]
+    summary = {
+        "n_splits": n_splits,
+        "random_state": random_state,
+        "val_size": 0.2,
+        "mean": results[metric_cols].mean(numeric_only=True).to_dict(),
+        "std": results[metric_cols].std(ddof=1, numeric_only=True).to_dict(),
+    }
+
+    print("\n[CV] Per-fold results:\n", results)
+    print("\n[CV] Summary (mean ± std):")
+    for m in metric_cols:
+        mu = summary["mean"].get(m, float("nan"))
+        sd = summary["std"].get(m, float("nan"))
+        print(f"  {m}: {mu:.4f} ± {sd:.4f}")
+
+    if save_folds:
+        results.to_csv(EXPERIMENT_DIR / "cv_results.csv", index=False)
+        with open(EXPERIMENT_DIR / "cv_summary.yml", "w", encoding="utf-8") as f:
+            yaml.safe_dump(summary, f, sort_keys=False)
+
+    return {"per_fold": results, "summary": summary}
+
 def save_ds(ds: MorphologyDataset, filename: str):
     torch.save({
         "X": ds.X.detach().cpu().numpy(),
@@ -203,6 +327,15 @@ def save_ds(ds: MorphologyDataset, filename: str):
     }, EXPERIMENT_DIR / filename)
 
 if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-m", "--mode", type=str, help="normal or cross-validation")
+    args = parser.parse_args()
+
+    mode = args.mode
+    if mode not in ("normal", "cv"):
+        print(f"Training mode {args.mode} not recognized. Defaulting to normal training...")
+        mode = "normal"
 
     OUTPUTS_DIR = Path("./outputs")
 
@@ -215,21 +348,25 @@ if __name__ == "__main__":
     print(f"Created experiment directory {str(EXPERIMENT_DIR)}...")
 
     df = load_preprocessed_data()
-    print(df.shape)
 
     print("Loaded preprocessed data...")
-    print("Training started...")
 
     # Train
     config = load_config(Path("./configs/config.yml"))
     label_col = "label"  # 0/1
     feature_cols = [c for c in df.columns if c != label_col]
-    model, train_ds, val_ds, test_ds = run_train_val_split(df, feature_cols, label_col, config)
 
-    # Save model and test split
-    torch.save(model.state_dict(), EXPERIMENT_DIR / "model_wts.pt" )
-    save_ds(train_ds, "train_ds.pt")
-    save_ds(val_ds, "val_ds.pt")
-    save_ds(test_ds, "test_ds.pt")
+    if mode == "normal":
+        print("Normal training started...")
+        model, train_ds, val_ds, test_ds = run_normal_training(df, feature_cols, label_col, config)
 
-    print(f"Trained model and test split saved in {EXPERIMENT_DIR}...")
+        # Save model and test split
+        torch.save(model.state_dict(), EXPERIMENT_DIR / "model_wts.pt" )
+        save_ds(train_ds, "train_ds.pt")
+        save_ds(val_ds, "val_ds.pt")
+        save_ds(test_ds, "test_ds.pt")
+        print(f"Trained model and test split saved in {EXPERIMENT_DIR}...")
+
+    elif mode == "cv":
+        print("5-fold cross-validation training started...")
+        run_5fold_cv(df, feature_cols, label_col, config)
