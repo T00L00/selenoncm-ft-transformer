@@ -1,4 +1,4 @@
-from preprocess import MorphologyDataset, Normalize, load_preprocessed_data, load_config
+from data import MorphologyDataset, Normalize, load, load_config
 from ft_transformer import TabTransformerClassifier
 import torch
 import torch.nn as nn
@@ -347,7 +347,7 @@ if __name__ == "__main__":
 
     print(f"Created experiment directory {str(EXPERIMENT_DIR)}...")
 
-    df = load_preprocessed_data()
+    df = load()
 
     print("Loaded preprocessed data...")
 
