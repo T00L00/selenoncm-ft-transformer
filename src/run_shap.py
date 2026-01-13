@@ -5,7 +5,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 from ft_transformer import TabTransformerClassifier
-from preprocess import get_features, load_config, MorphologyDataset
+from data import get_features, load_config, MorphologyDataset
 import argparse
 import os
 

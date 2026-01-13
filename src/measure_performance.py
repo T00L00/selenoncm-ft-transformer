@@ -10,7 +10,7 @@ import torch
 from torch.utils.data import DataLoader
 from pathlib import Path
 from ft_transformer import TabTransformerClassifier
-from preprocess import MorphologyDataset, load_config
+from data import MorphologyDataset, load_config
 import argparse
 import os
 
