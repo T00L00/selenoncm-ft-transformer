@@ -14,7 +14,7 @@ if __name__ == "__main__":
     parser.add_argument("-c", "--config", type=str, help="config file path", required=True)
     args = parser.parse_args()
 
-    EXPERIMENT = Path(f"./outputs/{args.experiment}")
+    EXPERIMENT = Path(f"./outputs/training/{args.experiment}")
     if not os.path.isdir(EXPERIMENT):
         raise Exception(f"Experiment directory {EXPERIMENT} not found...")
     
@@ -30,7 +30,7 @@ if __name__ == "__main__":
     train_ds = np.load(TRAINDS_PATH)
     val_ds = np.load(TESTDS_PATH)
     num_features = val_ds["X"].shape[1]
-    feature_names = get_features(config["experiment"]["dataset"])
+    feature_names = get_features(config["experiment"]["train_dataset"])
 
     model = xgboost.XGBClassifier(
         n_estimators=config["model"]["n_estimators"],

@@ -1,0 +1,27 @@
+experiment:
+  name: xgb_cross_batch
+  description: "Train an xgboost model on batch5 for inferencing on batch1"
+  train_dataset: "./data/batch5.pkl"
+  inf_dataset: "./data/batch1.pkl"
+
+model:
+  n_estimators: 2000
+  max_depth: 4
+  subsample: 0.8
+  colsample_bytree: 0.8
+  reg_lambda: 1.0
+  reg_alpha: 0.0
+  min_child_weight: 1.0
+  gamma: 0.0
+  objective: "binary:logistic"
+  eval_metric: ["logloss", "auc", "aucpr"]
+  tree_method: "hist"
+
+training:
+  max_epochs: 200
+  lr: 0.02
+  weight_decay: 1e-3
+  test_size: 0.2
+  seed: 42
+  batch_size: 64
+  patience: 30

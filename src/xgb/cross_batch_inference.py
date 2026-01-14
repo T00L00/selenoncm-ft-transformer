@@ -1,3 +1,5 @@
+import shutil
+import uuid
 from sklearn.metrics import (
     roc_curve, roc_auc_score,
     precision_recall_curve, average_precision_score,
@@ -121,25 +123,25 @@ if __name__ == "__main__":
         
     config = load_config(args.config)
 
-    if not os.path.exists(config["experiment"]["model_dir"]):
-        raise Exception(f"Model not found at {config['experiment']['model_dir']}...")
+    if not os.path.exists(config["experiment"]["model"]):
+        raise Exception(f"Model not found at {config['experiment']['model']}...")
     
-    MODEL_PATH = Path(config["experiment"]["model_dir"])
+    MODEL_PATH = Path(config["experiment"]["model"])
 
     # Create experiment directory with unique identifier attached to experiment name prefix
     os.makedirs(OUTPUTS_DIR, exist_ok=True)
     experiments = list(OUTPUTS_DIR.rglob(f"{config['experiment']['name']}_*"))
-    EXPERIMENT = OUTPUTS_DIR / f"{config['experiment']['name']}_{len(experiments)+1}"
+    EXPERIMENT = OUTPUTS_DIR / "inference" / f"{config['experiment']['name']}_{str(uuid.uuid4())[:8]}"
     os.makedirs(EXPERIMENT, exist_ok=True)
+    shutil.copy(args.config, EXPERIMENT / "config.yml")
 
     train_data = load_dataset(config["experiment"]["train_dataset"])
     inf_data = load_dataset(config["experiment"]["inf_dataset"])
-    inf_df = align_datasets(train_data, inf_data)
 
     label_col = "label"
-    feature_cols = [c for c in inf_df.columns if c != label_col]
-    X = inf_df[feature_cols]
-    y = inf_df[label_col]
+    feature_cols = [c for c in inf_data.columns if c != label_col]
+    X = inf_data[feature_cols]
+    y = inf_data[label_col]
     
     model = xgb.XGBClassifier(
         n_estimators=config["model"]["n_estimators"],

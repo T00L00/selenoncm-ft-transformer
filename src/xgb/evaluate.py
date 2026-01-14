@@ -92,7 +92,7 @@ if __name__ == "__main__":
     parser.add_argument("-c", "--config", type=str, help="config file path", required=True)
     args = parser.parse_args()
 
-    EXPERIMENT = Path(f"./outputs/{args.experiment}")
+    EXPERIMENT = Path(f"./outputs/training/{args.experiment}")
     if not os.path.isdir(EXPERIMENT):
         raise Exception(f"Experiment directory {EXPERIMENT} not found...")
     

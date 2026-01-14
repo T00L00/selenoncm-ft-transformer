@@ -1,4 +1,5 @@
 import pickle
+from typing import Tuple
 import torch
 from torch.utils.data import Dataset
 import numpy as np
@@ -91,3 +92,14 @@ def get_features(dataset_path: Path) -> list[str]:
     with open(dataset_path, "rb") as f:
         df: pd.DataFrame = pickle.load(f)
     return df.columns
+
+def align_datasets(train: pd.DataFrame, inf: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:   
+    common_cols = [col for col in inf.columns if col in train.columns]
+    missing_cols = [col for col in train.columns if col not in inf.columns]
+
+    print(f"# of common columns found between training and inference datasets: {len(common_cols)}")
+    print(f"# of extra columns training has compared to inference dataset: {len(missing_cols)}")
+
+    aligned_train = train[common_cols]
+    aligned_inf = inf[common_cols]
+    return aligned_train, aligned_inf
