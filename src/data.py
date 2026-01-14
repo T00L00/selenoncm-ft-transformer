@@ -1,3 +1,4 @@
+import pickle
 import torch
 from torch.utils.data import Dataset
 import numpy as np
@@ -82,16 +83,9 @@ class Normalize:
 
         return X_scaled.astype(np.float32)
 
-def load() -> pd.DataFrame:
-
-    # Load data and preprocess
-    gct = parse(DATASET)
-    df = gct.data_df
-    df = df.T
-
-    samples_metadata = gct.col_metadata_df
-    df["label"] = samples_metadata["perturbation"].apply(lambda x: 1 if x == "3F9KO" or x == "KO" else 0)
-
+def load_b1b5() -> pd.DataFrame:
+    with open("./data/b1b5.pkl", "rb") as f:
+        df: pd.DataFrame = pickle.load(f)
     return df
 
 def get_features() -> list[str]:

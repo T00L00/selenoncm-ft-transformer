@@ -1,3 +1,6 @@
+experiment:
+  name: fft
+
 model:
   d_model: 128
   n_heads: 8

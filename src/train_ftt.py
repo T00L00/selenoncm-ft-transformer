@@ -1,4 +1,4 @@
-from data import MorphologyDataset, Normalize, load, load_config
+from data import MorphologyDataset, Normalize, load_b1b5, load_config
 from ft_transformer import TabTransformerClassifier
 import torch
 import torch.nn as nn
@@ -328,6 +328,12 @@ def save_ds(ds: MorphologyDataset, filename: str):
 
 if __name__ == "__main__":
 
+    OUTPUTS_DIR = Path("./outputs")
+    CONFIG = Path("./configs/ftt.yml")
+
+    config = load_config(CONFIG)
+
+    # Set up arg parser
     parser = argparse.ArgumentParser()
     parser.add_argument("-m", "--mode", type=str, help="normal or cross-validation")
     args = parser.parse_args()
@@ -337,22 +343,18 @@ if __name__ == "__main__":
         print(f"Training mode {args.mode} not recognized. Defaulting to normal training...")
         mode = "normal"
 
-    OUTPUTS_DIR = Path("./outputs")
-
-    # Create experiment directory with unique identifier attached to "fft_" prefix
+    # Create experiment directory with unique identifier attached to experiment name prefix
     os.makedirs(OUTPUTS_DIR, exist_ok=True)
-    experiments = list(OUTPUTS_DIR.rglob("ftt_*"))
-    EXPERIMENT_DIR = OUTPUTS_DIR / f"ftt_{len(experiments)+1}"
+    experiments = list(OUTPUTS_DIR.rglob(f"{config['experiment']['name']}_*"))
+    EXPERIMENT_DIR = OUTPUTS_DIR / f"{config['experiment']['name']}_{len(experiments)+1}"
     os.makedirs(EXPERIMENT_DIR, exist_ok=True)
 
     print(f"Created experiment directory {str(EXPERIMENT_DIR)}...")
 
-    df = load()
-
+    df = load_b1b5()
     print("Loaded preprocessed data...")
 
-    # Train
-    config = load_config(Path("./configs/config.yml"))
+    # Train    
     label_col = "label"  # 0/1
     feature_cols = [c for c in df.columns if c != label_col]
 
