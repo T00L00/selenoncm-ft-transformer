@@ -6,6 +6,7 @@ import pandas as pd
 from cmapPy.pandasGEXpress.parse import parse
 from pathlib import Path
 import yaml
+import os
 
 DATASET = Path("./data")
 
@@ -83,8 +84,11 @@ class Normalize:
 
         return X_scaled.astype(np.float32)
 
-def load_b1b5() -> pd.DataFrame:
-    with open("./data/b1b5.pkl", "rb") as f:
+def load_dataset(path: Path) -> pd.DataFrame:
+    if not os.path.exists(path):
+        raise Exception(f"{path} dataset does not exist!")
+    
+    with open(path, "rb") as f:
         df: pd.DataFrame = pickle.load(f)
     return df
 
@@ -95,5 +99,5 @@ def get_features() -> list[str]:
     return df.columns
 
 def load_config(path: str | Path) -> dict:
-    with open(path, "r") as f:
+    with open(Path(path), "r") as f:
         return yaml.safe_load(f)

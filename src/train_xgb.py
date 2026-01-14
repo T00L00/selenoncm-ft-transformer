@@ -4,14 +4,22 @@ from pathlib import Path
 from sklearn.model_selection import train_test_split
 import xgboost as xgb
 import torch
-from data import Normalize, load_b1b5, load_config
+import argparse
+from data import Normalize, load_dataset, load_config
 
 if __name__ == "__main__":
 
     OUTPUTS_DIR = Path("./outputs")
-    CONFIG = Path("./configs/ftt.yml")
 
-    config = load_config(Path("./configs/xgb.yml"))
+    # Set up arg parser
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-c", "--config", type=str, help="config file path", required=True)
+    args = parser.parse_args()
+
+    if not os.path.exists(args.config):
+        raise Exception(f"Could not find config file: {args.config}")
+    
+    config = load_config(args.config)
 
     # Create experiment directory with unique identifier attached to experiment name prefix
     os.makedirs(OUTPUTS_DIR, exist_ok=True)
@@ -21,12 +29,12 @@ if __name__ == "__main__":
 
     print(f"Created experiment directory {str(EXPERIMENT_DIR)}...")
 
-    df = load_b1b5()
+    df = load_dataset(Path(config["experiment"]["dataset"]))
     label_col = "label"
     feature_cols = [c for c in df.columns if c != label_col]
+
     X = df[feature_cols]
     y = df[label_col]
-
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, stratify=y, random_state=config["training"]["seed"]
     )

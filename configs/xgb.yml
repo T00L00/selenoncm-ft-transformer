@@ -1,5 +1,6 @@
 experiment:
   name: xgb
+  dataset: "./data/b1b5.pkl"
 
 model:
   n_estimators: 2000

@@ -1,5 +1,6 @@
 experiment:
-  name: fft
+  name: ftt
+  dataset: "./data/b1b5.pkl"
 
 model:
   d_model: 128

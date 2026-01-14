@@ -90,18 +90,21 @@ def measure_performance(model: xgb.XGBClassifier, X_test: np.ndarray, y_test: np
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("-e", "--experiment", type=str, help="name of experiment in ouptuts directory")
+    parser.add_argument("-e", "--experiment", type=str, help="name of experiment in ouptuts directory", required=True)
+    parser.add_argument("-c", "--config", type=str, help="config file path", required=True)
     args = parser.parse_args()
 
     EXPERIMENT = Path(f"./outputs/{args.experiment}")
     if not os.path.isdir(EXPERIMENT):
         raise Exception(f"Experiment directory {EXPERIMENT} not found...")
-
-    CONFIG = Path("./configs/xgb.yml")
+    
     MODEL_PATH = EXPERIMENT / "xgb.json"
     TESTDS_PATH = EXPERIMENT / "test_ds.pt"
 
-    config = load_config(CONFIG)
+    if not os.path.exists(args.config):
+        raise Exception(f"Could not find config file: {args.config}")
+        
+    config = load_config(args.config)
 
     test_ds = torch.load(TESTDS_PATH, weights_only=False)
     
