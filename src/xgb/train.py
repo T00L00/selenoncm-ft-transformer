@@ -4,7 +4,7 @@ from sklearn.model_selection import train_test_split
 import xgboost as xgb
 import numpy as np
 import argparse
-from data import Normalize, load_dataset, load_config
+from .data import Normalize, load_dataset, load_config
 
 if __name__ == "__main__":
 
@@ -39,10 +39,10 @@ if __name__ == "__main__":
     )
 
     # Preprocess (fit on train only)
-    normalize = Normalize(mode="robust", clip_z=5.0)
-    normalize.fit(X_train)
-    X_train = normalize.transform(X_train)
-    X_test = normalize.transform(X_test)
+    # normalize = Normalize(mode="robust", clip_z=5.0)
+    # normalize.fit(X_train)
+    # X_train = normalize.transform(X_train)
+    # X_test = normalize.transform(X_test)
 
     model = xgb.XGBClassifier(
         n_estimators=config["model"]["n_estimators"],

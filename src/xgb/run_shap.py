@@ -3,7 +3,7 @@ import shap
 from pathlib import Path
 import matplotlib.pyplot as plt
 import xgboost
-from data import get_features, load_config
+from .data import get_features, load_config
 import argparse
 import os
 

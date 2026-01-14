@@ -4,12 +4,13 @@ from sklearn.metrics import (
     confusion_matrix, accuracy_score, f1_score, precision_score, recall_score
 )
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 import xgboost as xgb
 from pathlib import Path
 import argparse
 import os
-from .data import load_config
+from .data import load_config, load_dataset
 
 def measure_performance(model: xgb.XGBClassifier, X_test: np.ndarray, y_test: np.ndarray):
 
@@ -83,28 +84,62 @@ def measure_performance(model: xgb.XGBClassifier, X_test: np.ndarray, y_test: np
     plt.tight_layout()
     plt.savefig(EXPERIMENT / "predicted-prob-dist.png")
 
+def align_datasets(target: pd.DataFrame, other: pd.DataFrame) -> pd.DataFrame:
+    common_cols = [col for col in target.columns if col in other.columns]
+    missing_cols = [col for col in target.columns if col not in other.columns]
 
+    print(f"# of common columns found between training and inference dataset: {len(common_cols)}")
+    print(f"# of missing columns from inference dataset: {len(missing_cols)}")
+
+    # Select common columns from other
+    aligned = other[common_cols].copy()
+
+    # Create a DataFrame for missing columns with NaN values (if any)
+    if missing_cols:
+        missing_df = pd.DataFrame(np.nan, index=aligned.index, columns=missing_cols)
+        aligned = pd.concat([aligned, missing_df], axis=1)
+
+    # Reorder columns to match target's column order
+    aligned = aligned[target.columns]
+
+    assert aligned.shape[1] == target.shape[1]
+    print("Inference dataframe:")
+    print(aligned)
+
+    return aligned
 
 if __name__ == "__main__":
 
+    OUTPUTS_DIR = Path("./outputs")
+
     parser = argparse.ArgumentParser()
-    parser.add_argument("-e", "--experiment", type=str, help="name of experiment in ouptuts directory", required=True)
     parser.add_argument("-c", "--config", type=str, help="config file path", required=True)
     args = parser.parse_args()
-
-    EXPERIMENT = Path(f"./outputs/{args.experiment}")
-    if not os.path.isdir(EXPERIMENT):
-        raise Exception(f"Experiment directory {EXPERIMENT} not found...")
-    
-    MODEL_PATH = EXPERIMENT / "xgb.json"
-    TESTDS_PATH = EXPERIMENT / "test_ds.npz"
 
     if not os.path.exists(args.config):
         raise Exception(f"Could not find config file: {args.config}")
         
     config = load_config(args.config)
 
-    test_ds = np.load(TESTDS_PATH)
+    if not os.path.exists(config["experiment"]["model_dir"]):
+        raise Exception(f"Model not found at {config['experiment']['model_dir']}...")
+    
+    MODEL_PATH = Path(config["experiment"]["model_dir"])
+
+    # Create experiment directory with unique identifier attached to experiment name prefix
+    os.makedirs(OUTPUTS_DIR, exist_ok=True)
+    experiments = list(OUTPUTS_DIR.rglob(f"{config['experiment']['name']}_*"))
+    EXPERIMENT = OUTPUTS_DIR / f"{config['experiment']['name']}_{len(experiments)+1}"
+    os.makedirs(EXPERIMENT, exist_ok=True)
+
+    train_data = load_dataset(config["experiment"]["train_dataset"])
+    inf_data = load_dataset(config["experiment"]["inf_dataset"])
+    inf_df = align_datasets(train_data, inf_data)
+
+    label_col = "label"
+    feature_cols = [c for c in inf_df.columns if c != label_col]
+    X = inf_df[feature_cols]
+    y = inf_df[label_col]
     
     model = xgb.XGBClassifier(
         n_estimators=config["model"]["n_estimators"],
@@ -123,5 +158,5 @@ if __name__ == "__main__":
     )
 
     model.load_model(MODEL_PATH)
-    measure_performance(model, test_ds["X"], test_ds["y"])
+    measure_performance(model, X, y)
 
