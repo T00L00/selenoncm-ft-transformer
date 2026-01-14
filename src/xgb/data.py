@@ -9,18 +9,6 @@ import yaml
 import os
 
 DATASET = Path("./data")
-
-class MorphologyDataset(Dataset):
-    def __init__(self, X: np.ndarray, y: np.ndarray):
-        # X: float32 [N, D], y: int64 [N]
-        self.X = torch.from_numpy(X).float()
-        self.y = torch.from_numpy(y).long()
-
-    def __len__(self):
-        return self.X.shape[0]
-
-    def __getitem__(self, idx):
-        return self.X[idx], self.y[idx]
     
 class Normalize:
     """
@@ -92,12 +80,14 @@ def load_dataset(path: Path) -> pd.DataFrame:
         df: pd.DataFrame = pickle.load(f)
     return df
 
-def get_features() -> list[str]:
-    gct = parse(DATASET)
-    df = gct.data_df
-    df = df.T
-    return df.columns
-
 def load_config(path: str | Path) -> dict:
     with open(Path(path), "r") as f:
         return yaml.safe_load(f)
+    
+def get_features(dataset_path: Path) -> list[str]:
+    if not os.path.exists(dataset_path):
+        raise Exception(f"{dataset_path} dataset does not exist!")
+    
+    with open(dataset_path, "rb") as f:
+        df: pd.DataFrame = pickle.load(f)
+    return df.columns

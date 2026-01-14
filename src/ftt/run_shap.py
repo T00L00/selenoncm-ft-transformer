@@ -21,26 +21,29 @@ class LogitModelWrapper(torch.nn.Module):
 if __name__ == "__main__":    
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("-e", "--experiment", type=str, help="name of experiment in ouptuts directory")
+    parser.add_argument("-e", "--experiment", type=str, help="name of experiment in ouptuts directory", required=True)
+    parser.add_argument("-c", "--config", type=str, help="config file path", required=True)
     args = parser.parse_args()
 
     EXPERIMENT = Path(f"./outputs/{args.experiment}")
     if not os.path.isdir(EXPERIMENT):
         raise Exception(f"Experiment directory {EXPERIMENT} not found...")
     
-    CONFIG = Path("./configs/config.yml")
     MODEL_PATH = EXPERIMENT / "model_wts.pt"
     TRAINDS_PATH = EXPERIMENT / "train_ds.pt"
     TESTDS_PATH = EXPERIMENT / "val_ds.pt"
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    config = load_config(CONFIG)
+    if not os.path.exists(args.config):
+        raise Exception(f"Could not find config file: {args.config}")
+    
+    config = load_config(args.config)
 
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     chkpt = torch.load(MODEL_PATH)
     train_ds = torch.load(TRAINDS_PATH, weights_only=False)
     val_ds = torch.load(TESTDS_PATH, weights_only=False)
     num_features = val_ds["X"].shape[1]
-    feature_names = get_features()
+    feature_names = get_features(config["experiment"]["dataset"])
 
     model = TabTransformerClassifier(
         num_features=num_features,

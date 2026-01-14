@@ -3,15 +3,13 @@ from sklearn.metrics import (
     precision_recall_curve, average_precision_score,
     confusion_matrix, accuracy_score, f1_score, precision_score, recall_score
 )
-from sklearn.calibration import calibration_curve
 import numpy as np
 import matplotlib.pyplot as plt
-import torch
 import xgboost as xgb
 from pathlib import Path
-from data import MorphologyDataset, load_config
 import argparse
 import os
+from data import load_config
 
 def measure_performance(model: xgb.XGBClassifier, X_test: np.ndarray, y_test: np.ndarray):
 
@@ -99,14 +97,14 @@ if __name__ == "__main__":
         raise Exception(f"Experiment directory {EXPERIMENT} not found...")
     
     MODEL_PATH = EXPERIMENT / "xgb.json"
-    TESTDS_PATH = EXPERIMENT / "test_ds.pt"
+    TESTDS_PATH = EXPERIMENT / "test_ds.npz"
 
     if not os.path.exists(args.config):
         raise Exception(f"Could not find config file: {args.config}")
         
     config = load_config(args.config)
 
-    test_ds = torch.load(TESTDS_PATH, weights_only=False)
+    test_ds = np.load(TESTDS_PATH)
     
     model = xgb.XGBClassifier(
         n_estimators=config["model"]["n_estimators"],

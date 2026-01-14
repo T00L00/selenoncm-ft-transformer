@@ -1,9 +1,8 @@
-import numpy as np
 import os
 from pathlib import Path
 from sklearn.model_selection import train_test_split
 import xgboost as xgb
-import torch
+import numpy as np
 import argparse
 from data import Normalize, load_dataset, load_config
 
@@ -66,9 +65,7 @@ if __name__ == "__main__":
     model.fit(X_train, y_train, eval_set=[(X_test, y_test)], verbose=True)
     model.save_model(EXPERIMENT_DIR / "xgb.json")
 
-    torch.save({
-        "X": X_test,
-        "y": y_test
-    }, EXPERIMENT_DIR / "test_ds.pt")
+    np.savez(EXPERIMENT_DIR / "train_ds.npz", X=X_train, y=y_train)
+    np.savez(EXPERIMENT_DIR / "test_ds.npz", X=X_test, y=y_test)
 
     print(f"Trained model and test split saved in {EXPERIMENT_DIR}")

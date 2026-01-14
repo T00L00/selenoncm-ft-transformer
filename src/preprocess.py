@@ -10,7 +10,7 @@ BATCH3 = "2025_06_10_Batch3_normalized_feature_select_negcon_batch.gct"
 BATCH4 = "2025_09_25_Batch4_normalized_feature_select_negcon_batch.gct"
 BATCH5 = "2025_09_25_Batch5_normalized_feature_select_negcon_batch.gct"
 
-def extract(path: Path, batch_prefix: str, ko_labels: list[str]):
+def extract(path: Path, batch_prefix: str, ko_labels: list[str]) -> pd.DataFrame:
     gct = parse(str(path))
     df = gct.data_df.T
     df["label"] = gct.col_metadata_df["perturbation"].apply(lambda x: 1 if x in ko_labels else 0)
