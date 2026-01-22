@@ -1,9 +1,9 @@
 experiment:
-  name: xgb_inf_b1b5_model_on_b4
-  description: "Model trained on b1b5.pkl, run inference on batch4.pkl"
-  model: "./outputs/training/xgb_cross_batch_ad3a4035/xgb.json"
-  train_dataset: "./outputs/training/xgb_cross_batch_ad3a4035/train_df.pkl"
-  inf_dataset: "./outputs/training/xgb_cross_batch_ad3a4035/inf_df.pkl"
+  name: xgb_inf_b5_model_on_b1
+  description: "Model trained on batch5.pkl, run inference on batch1.pkl"
+  model: "./outputs/training/xgb_cross_batch_d7eaef63/xgb.json"
+  train_dataset: "./outputs/training/xgb_cross_batch_d7eaef63/train_df.pkl"
+  inf_dataset: "./outputs/training/xgb_cross_batch_d7eaef63/inf_df.pkl"
 
 model:
   n_estimators: 2000

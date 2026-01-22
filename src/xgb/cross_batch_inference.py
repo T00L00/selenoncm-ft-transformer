@@ -162,3 +162,5 @@ if __name__ == "__main__":
     model.load_model(MODEL_PATH)
     measure_performance(model, X, y)
 
+    print(f"Inference results outputted to {EXPERIMENT}")
+

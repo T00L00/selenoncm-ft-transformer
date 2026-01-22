@@ -74,7 +74,7 @@ if __name__ == "__main__":
 
     print("Training started...")
 
-    model.fit(X_train, y_train, eval_set=[(X_test, y_test)], verbose=True)
+    model.fit(X_train, y_train, eval_set=[(X_test, y_test)], verbose=False)
     model.save_model(EXPERIMENT_DIR / "xgb.json")
 
     np.savez(EXPERIMENT_DIR / "train_ds.npz", X=X_train, y=y_train)

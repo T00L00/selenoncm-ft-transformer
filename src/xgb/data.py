@@ -94,7 +94,7 @@ def get_features(dataset_path: Path) -> list[str]:
     return df.columns
 
 def align_datasets(train: pd.DataFrame, inf: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:   
-    common_cols = [col for col in inf.columns if col in train.columns]
+    common_cols = [col for col in train.columns if col in inf.columns]
     missing_cols = [col for col in train.columns if col not in inf.columns]
 
     print(f"# of common columns found between training and inference datasets: {len(common_cols)}")

@@ -5,6 +5,7 @@ from sklearn.metrics import (
 )
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.colors import LinearSegmentedColormap
 import xgboost as xgb
 from pathlib import Path
 import argparse
@@ -57,11 +58,12 @@ def measure_performance(model: xgb.XGBClassifier, X_test: np.ndarray, y_test: np
 
     # Confusion Matrix @0.5
     cm = confusion_matrix(y_test, pred_05)
+    cm_cmap = LinearSegmentedColormap.from_list("blue_orange", ["#92c5de", "#f4a582"])
     plt.figure(figsize=(5,4))
-    plt.imshow(cm, interpolation="nearest", cmap="Oranges")
+    plt.imshow(cm, interpolation="nearest", cmap=cm_cmap)
     plt.title("XGBoost Confusion Matrix @0.5")
-    plt.xticks([0,1], ["WT(0)", "SELENON(1)"])
-    plt.yticks([0,1], ["WT(0)", "SELENON(1)"])
+    plt.xticks([0,1], ["WT(0)", "KO(1)"])
+    plt.yticks([0,1], ["WT(0)", "KO(1)"])
     for i in range(2):
         for j in range(2):
             plt.text(j, i, str(cm[i,j]), ha="center", va="center")
@@ -73,15 +75,15 @@ def measure_performance(model: xgb.XGBClassifier, X_test: np.ndarray, y_test: np
 
     # Probability histograms
     plt.figure(figsize=(7,5))
-    plt.hist(probs[y_test==0], bins=30, alpha=0.6, label="WT (0)")
-    plt.hist(probs[y_test==1], bins=30, alpha=0.6, label="SELENON (1)")
+    plt.hist(probs[y_test==0], bins=30, alpha=0.6, label="WT")
+    plt.hist(probs[y_test==1], bins=30, alpha=0.6, label="KO")
     plt.axvline(0.5, linestyle="--")
     plt.title("XGBoost Predicted Probability Distributions")
-    plt.xlabel("P(class=KO)")
+    plt.xlabel("P(KO)")
     plt.ylabel("Count")
-    plt.legend()
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
     plt.tight_layout()
-    plt.savefig(EXPERIMENT / "predicted-prob-dist.png")
+    plt.savefig(EXPERIMENT / "predicted-prob-dist.png", bbox_inches='tight')
 
 
 
