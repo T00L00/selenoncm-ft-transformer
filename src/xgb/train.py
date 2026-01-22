@@ -1,10 +1,15 @@
+# This script trains an XGBoost model on one batch dataset and the model is intended to be used 
+# for inference on a different batch dataset.
+
 import os
 from pathlib import Path
 from sklearn.model_selection import train_test_split
 import xgboost as xgb
 import numpy as np
 import argparse
-from .data import Normalize, load_dataset, load_config
+from .data import Normalize, load_dataset, load_config, align_datasets
+import uuid
+import shutil
 
 if __name__ == "__main__":
 
@@ -20,20 +25,33 @@ if __name__ == "__main__":
     
     config = load_config(args.config)
 
+    assert config["experiment"]["train_dataset"], "Must reference a training dataset in the config file!"
+
     # Create experiment directory with unique identifier attached to experiment name prefix
     os.makedirs(OUTPUTS_DIR, exist_ok=True)
     experiments = list(OUTPUTS_DIR.rglob(f"{config['experiment']['name']}_*"))
-    EXPERIMENT_DIR = OUTPUTS_DIR / f"{config['experiment']['name']}_{len(experiments)+1}"
+    EXPERIMENT_DIR = OUTPUTS_DIR / "training" / f"{config['experiment']['name']}_{str(uuid.uuid4())[:8]}"
     os.makedirs(EXPERIMENT_DIR, exist_ok=True)
+    shutil.copy(args.config, EXPERIMENT_DIR / "config.yml")
 
     print(f"Created experiment directory {str(EXPERIMENT_DIR)}...")
 
-    df = load_dataset(Path(config["experiment"]["dataset"]))
-    label_col = "label"
-    feature_cols = [c for c in df.columns if c != label_col]
+    train_data = load_dataset(Path(config["experiment"]["train_dataset"]))
+    if config["experiment"]["train_dataset"] != config["experiment"]["inf_dataset"] \
+        and config["experiment"]["inf_dataset"] is not None:
 
-    X = df[feature_cols]
-    y = df[label_col]
+        print("Setting up training for cross-batch inferencing...")
+
+        inf_data = load_dataset(Path(config["experiment"]["inf_dataset"]))
+        train_data, inf_data = align_datasets(train_data, inf_data)
+        train_data.to_pickle(EXPERIMENT_DIR / "train_df.pkl")
+        inf_data.to_pickle(EXPERIMENT_DIR / "inf_df.pkl")
+
+    label_col = "label"
+    feature_cols = [c for c in train_data.columns if c != label_col]
+
+    X = train_data[feature_cols]
+    y = train_data[label_col]
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, stratify=y, random_state=config["training"]["seed"]
     )
@@ -62,7 +80,7 @@ if __name__ == "__main__":
 
     print("Training started...")
 
-    model.fit(X_train, y_train, eval_set=[(X_test, y_test)], verbose=True)
+    model.fit(X_train, y_train, eval_set=[(X_test, y_test)], verbose=False)
     model.save_model(EXPERIMENT_DIR / "xgb.json")
 
     np.savez(EXPERIMENT_DIR / "train_ds.npz", X=X_train, y=y_train)

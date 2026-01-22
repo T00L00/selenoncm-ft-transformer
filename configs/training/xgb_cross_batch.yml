@@ -2,7 +2,7 @@ experiment:
   name: xgb_cross_batch
   description: "Train an xgboost model on batch5 for inferencing on batch1"
   train_dataset: "./data/batch5.pkl"
-  inf_dataset: "./data/batch1.pkl"
+  inf_dataset:
 
 model:
   n_estimators: 2000

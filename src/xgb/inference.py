@@ -86,30 +86,6 @@ def measure_performance(model: xgb.XGBClassifier, X_test: np.ndarray, y_test: np
     plt.tight_layout()
     plt.savefig(EXPERIMENT / "predicted-prob-dist.png")
 
-def align_datasets(target: pd.DataFrame, other: pd.DataFrame) -> pd.DataFrame:
-    common_cols = [col for col in target.columns if col in other.columns]
-    missing_cols = [col for col in target.columns if col not in other.columns]
-
-    print(f"# of common columns found between training and inference dataset: {len(common_cols)}")
-    print(f"# of missing columns from inference dataset: {len(missing_cols)}")
-
-    # Select common columns from other
-    aligned = other[common_cols].copy()
-
-    # Create a DataFrame for missing columns with NaN values (if any)
-    if missing_cols:
-        missing_df = pd.DataFrame(np.nan, index=aligned.index, columns=missing_cols)
-        aligned = pd.concat([aligned, missing_df], axis=1)
-
-    # Reorder columns to match target's column order
-    aligned = aligned[target.columns]
-
-    assert aligned.shape[1] == target.shape[1]
-    print("Inference dataframe:")
-    print(aligned)
-
-    return aligned
-
 if __name__ == "__main__":
 
     OUTPUTS_DIR = Path("./outputs")
@@ -135,7 +111,6 @@ if __name__ == "__main__":
     os.makedirs(EXPERIMENT, exist_ok=True)
     shutil.copy(args.config, EXPERIMENT / "config.yml")
 
-    train_data = load_dataset(config["experiment"]["train_dataset"])
     inf_data = load_dataset(config["experiment"]["inf_dataset"])
 
     label_col = "label"
