@@ -1,4 +1,4 @@
-from data import MorphologyDataset, Normalize, load, load_config
+from data import MorphologyDataset, Normalize, load_dataset, load_config
 from ft_transformer import TabTransformerClassifier
 import torch
 import torch.nn as nn
@@ -152,7 +152,7 @@ def run_normal_training(
         X, y, test_size=config["training"]["test_size"], stratify=y, random_state=config["training"]["seed"]
     )
 
-    X_val, X_test, y_val, y_test = train_test_split(
+    X_test, X_val, y_test, y_val = train_test_split(
         X_combine, y_combine, test_size=config["training"]["test_size"], stratify=y_combine, random_state=config["training"]["seed"]
     )
 
@@ -328,8 +328,12 @@ def save_ds(ds: MorphologyDataset, filename: str):
 
 if __name__ == "__main__":
 
+    OUTPUTS_DIR = Path("./outputs")
+
+    # Set up arg parser
     parser = argparse.ArgumentParser()
     parser.add_argument("-m", "--mode", type=str, help="normal or cross-validation")
+    parser.add_argument("-c", "--config", type=str, help="config file path", required=True)
     args = parser.parse_args()
 
     mode = args.mode
@@ -337,23 +341,21 @@ if __name__ == "__main__":
         print(f"Training mode {args.mode} not recognized. Defaulting to normal training...")
         mode = "normal"
 
-    OUTPUTS_DIR = Path("./outputs")
+    if not os.path.exists(args.config):
+        raise Exception(f"Could not find config file: {args.config}")
+    
+    config = load_config(args.config)
 
-    # Create experiment directory with unique identifier attached to "fft_" prefix
+    # Create experiment directory with unique identifier attached to experiment name prefix
     os.makedirs(OUTPUTS_DIR, exist_ok=True)
-    experiments = list(OUTPUTS_DIR.rglob("ftt_*"))
-    EXPERIMENT_DIR = OUTPUTS_DIR / f"ftt_{len(experiments)+1}"
+    experiments = list(OUTPUTS_DIR.rglob(f"{config['experiment']['name']}_*"))
+    EXPERIMENT_DIR = OUTPUTS_DIR / f"{config['experiment']['name']}_{len(experiments)+1}"
     os.makedirs(EXPERIMENT_DIR, exist_ok=True)
 
     print(f"Created experiment directory {str(EXPERIMENT_DIR)}...")
 
-    df = load()
-
-    print("Loaded preprocessed data...")
-
-    # Train
-    config = load_config(Path("./configs/config.yml"))
-    label_col = "label"  # 0/1
+    df = load_dataset(Path(config["experiment"]["dataset"]))
+    label_col = "label"
     feature_cols = [c for c in df.columns if c != label_col]
 
     if mode == "normal":

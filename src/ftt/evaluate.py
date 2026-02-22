@@ -50,7 +50,7 @@ def plot_model_performance(y_true, probs, title_prefix="Validation"):
 
     s_05 = summarize_at_threshold(0.5)
 
-    print(f"{title_prefix} ROC-AUC: {roc_auc:.4f} | PR-AUC: {pr_auc:.4f}")
+    print(f"FT-Transformer ROC-AUC: {roc_auc:.4f} | PR-AUC: {pr_auc:.4f}")
     print(f"@0.50:  acc={s_05['acc']:.4f} f1={s_05['f1']:.4f} prec={s_05['precision']:.4f} rec={s_05['recall']:.4f}")
 
     # Plot ROC curve and PR curve next to each other
@@ -89,10 +89,10 @@ def plot_model_performance(y_true, probs, title_prefix="Validation"):
                 ax.text(j, i, str(cm[i, j]), ha="center", va="center")
 
     # Plot confusion matrices next to each other
-    fig2 = plt.figure(figsize=(10, 5))
+    fig2 = plt.figure()
     ax = fig2.add_subplot(1, 1, 1)
 
-    plot_cm(ax, s_05["cm"], f"{title_prefix} Confusion Matrix @0.50")
+    plot_cm(ax, s_05["cm"], f"FT-Transformer Confusion Matrix @0.50")
 
     fig2.savefig(EXPERIMENT / "cm05.png")
 
@@ -140,27 +140,30 @@ def plot_model_performance(y_true, probs, title_prefix="Validation"):
     ax.axvline(0.5, linestyle="--", label="0.5")
     ax.set_xlabel("Threshold")
     ax.set_ylabel("Score")
-    ax.set_title(f"{title_prefix} Threshold Sweep")
+    ax.set_title(f"FT-Transformer Threshold Sweep")
     ax.legend()
     fig4.savefig(EXPERIMENT / "threshold-sweep.png")
 
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("-e", "--experiment", type=str, help="name of experiment in ouptuts directory")
+    parser.add_argument("-e", "--experiment", type=str, help="name of experiment in ouptuts directory", required=True)
+    parser.add_argument("-c", "--config", type=str, help="config file path", required=True)
     args = parser.parse_args()
 
     EXPERIMENT = Path(f"./outputs/{args.experiment}")
     if not os.path.isdir(EXPERIMENT):
         raise Exception(f"Experiment directory {EXPERIMENT} not found...")
 
-    CONFIG = Path("./configs/config.yml")
     MODEL_PATH = EXPERIMENT / "model_wts.pt"
     TESTDS_PATH = EXPERIMENT / "test_ds.pt"
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    config = load_config(CONFIG)
+    if not os.path.exists(args.config):
+        raise Exception(f"Could not find config file: {args.config}")
+    
+    config = load_config(args.config)
 
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     chkpt = torch.load(MODEL_PATH)
     test_ds = torch.load(TESTDS_PATH, weights_only=False)
     num_features = test_ds["X"].shape[1]

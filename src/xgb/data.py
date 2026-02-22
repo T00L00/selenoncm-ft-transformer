@@ -1,3 +1,5 @@
+import pickle
+from typing import Tuple
 import torch
 from torch.utils.data import Dataset
 import numpy as np
@@ -5,20 +7,9 @@ import pandas as pd
 from cmapPy.pandasGEXpress.parse import parse
 from pathlib import Path
 import yaml
+import os
 
 DATASET = Path("./data")
-
-class MorphologyDataset(Dataset):
-    def __init__(self, X: np.ndarray, y: np.ndarray):
-        # X: float32 [N, D], y: int64 [N]
-        self.X = torch.from_numpy(X).float()
-        self.y = torch.from_numpy(y).long()
-
-    def __len__(self):
-        return self.X.shape[0]
-
-    def __getitem__(self, idx):
-        return self.X[idx], self.y[idx]
     
 class Normalize:
     """
@@ -82,24 +73,33 @@ class Normalize:
 
         return X_scaled.astype(np.float32)
 
-def load() -> pd.DataFrame:
-
-    # Load data and preprocess
-    gct = parse(DATASET)
-    df = gct.data_df
-    df = df.T
-
-    samples_metadata = gct.col_metadata_df
-    df["label"] = samples_metadata["perturbation"].apply(lambda x: 1 if x == "3F9KO" or x == "KO" else 0)
-
+def load_dataset(path: Path) -> pd.DataFrame:
+    if not os.path.exists(path):
+        raise Exception(f"{path} dataset does not exist!")
+    
+    with open(path, "rb") as f:
+        df: pd.DataFrame = pickle.load(f)
     return df
 
-def get_features() -> list[str]:
-    gct = parse(DATASET)
-    df = gct.data_df
-    df = df.T
+def load_config(path: str | Path) -> dict:
+    with open(Path(path), "r") as f:
+        return yaml.safe_load(f)
+    
+def get_features(dataset_path: Path) -> list[str]:
+    if not os.path.exists(dataset_path):
+        raise Exception(f"{dataset_path} dataset does not exist!")
+    
+    with open(dataset_path, "rb") as f:
+        df: pd.DataFrame = pickle.load(f)
     return df.columns
 
-def load_config(path: str | Path) -> dict:
-    with open(path, "r") as f:
-        return yaml.safe_load(f)
+def align_datasets(train: pd.DataFrame, inf: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:   
+    common_cols = [col for col in train.columns if col in inf.columns]
+    missing_cols = [col for col in train.columns if col not in inf.columns]
+
+    print(f"# of common columns found between training and inference datasets: {len(common_cols)}")
+    print(f"# of extra columns training has compared to inference dataset: {len(missing_cols)}")
+
+    aligned_train = train[common_cols]
+    aligned_inf = inf[common_cols]
+    return aligned_train, aligned_inf
